@@ -11,6 +11,7 @@ from time import sleep
 # Logging
 # http.client.HTTPConnection.debuglevel = 1
 logging.basicConfig(filename='omegle.log')
+logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger().setLevel(logging.INFO)
 # requests_log = logging.getLogger("requests.packages.urllib3")
 # requests_log.setLevel(logging.DEBUG)
