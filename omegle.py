@@ -5,10 +5,12 @@ from random import choice
 import requests
 import sys
 from sys import stdout
+from threading import Thread
+from time import sleep
 
 # Logging
 # http.client.HTTPConnection.debuglevel = 1
-logging.basicConfig()
+logging.basicConfig(filename='omegle.log')
 logging.getLogger().setLevel(logging.INFO)
 # requests_log = logging.getLogger("requests.packages.urllib3")
 # requests_log.setLevel(logging.DEBUG)
@@ -117,6 +119,8 @@ class OmegleSession:
         self._chat_outputs = chat_outputs
         self._pure_outputs = chat_outputs   # where only clean Stranger text goes
         self._connected = False
+
+        # TODO: Make variables used to check if session should be terminated thread-safe
         self._is_stranger_bot = False
         self._has_stranger_typed = False
         self._stranger_disconnected = False
@@ -127,36 +131,37 @@ class OmegleSession:
                                 'stoppedTyping': self._handle_event_stoppedTyping,
                                 'gotMessage': self._handle_event_gotMessage,
                                 'strangerDisconnected': self._handle_event_strangerDisconnected}
-        # TODO: Output stream
         self.event_list = []
-        self._connect()
-        while not self._time_to_stop():
-            events = self._get_events()
-            self.event_list.extend(events)
 
-            # TODO: Handle events and user input on separate threads to prevent blocking
-            # Handle events
-            for e in events:
-                event_type = e[0]
-                if event_type not in self._event_handlers:
-                    logging.warning('Unhandled event type: %s' % event_type)
-                else:
-                    self._event_handlers[event_type](e)
-
-            # Handle user input
-            self._handle_input()
+        # Run
+        if self._connect():
+            self._t_event_handling = Thread(target=self._process_events_loop, daemon=True)
+            self._t_event_handling.start()
+            self._t_input_handling = Thread(target=self._handle_input_loop, daemon=True)
+            self._t_input_handling.start()
 
     def _connect(self):
         msg = "Connecting"
         logging.info(msg)
         self._print_to_chat_outputs(msg)
         r = start_request(self._topics)
-        self._clientID = r.json()['clientID']
+        if r:
+            msg = "Connected"
+            logging.info(msg)
+            self._print_to_chat_outputs(msg)
+            self._clientID = r.json()['clientID']
+            return True
+        else:
+            msg = "Could not connect"
+            logging.warning(msg)
+            return False
 
-    def _handle_input(self):
-        msgs = self._chat_input.read().splitlines()
-        for msg in msgs:
-            self._send_message(msg)
+    def _handle_input_loop(self):
+        logging.info('Starting input handling loop')
+        while not self._time_to_stop():
+            msgs = self._chat_input.read().splitlines()
+            for msg in msgs:
+                self._send_message(msg)
 
     def _send_message(self, chat_msg):
         resp = send_request(self._clientID, chat_msg)
@@ -208,6 +213,20 @@ class OmegleSession:
         self._print_to_chat_outputs(msg)
         self._stranger_disconnected = True
 
+    def _process_events_loop(self):
+        logging.info('Starting event processing loop')
+        while not self._time_to_stop():
+            events = self._get_events()
+            self.event_list.extend(events)
+
+            # Handle events
+            for e in events:
+                event_type = e[0]
+                if event_type not in self._event_handlers:
+                    logging.warning('Unhandled event type: %s' % event_type)
+                else:
+                    self._event_handlers[event_type](e)
+
     def _get_events(self):
         logging.info('Requesting events')
         r = events_request(self._clientID)
@@ -233,6 +252,8 @@ def main():
     chat_input = open(CHAT_INPUT, 'r')
     # Start
     session = OmegleSession(topics, chat_input, chat_outputs)
+    while not session._time_to_stop():
+        sleep(1)
 
 if __name__ == "__main__":
     main()
