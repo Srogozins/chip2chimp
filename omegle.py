@@ -1,12 +1,8 @@
-#! /usr/bin/python
 import http.client
 import logging
 from random import choice
 import requests
-import sys
-from sys import stdout
 from threading import Thread
-from time import sleep
 
 # Logging
 # http.client.HTTPConnection.debuglevel = 1
@@ -51,9 +47,6 @@ SEND_HEADERS = {'Origin': ORIGIN,
 OMEGLE_URL_BASE = 'http://front1.omegle.com'
 
 LANGUAGE = 'en'
-
-CHATLOG_FILE = "chatlog/chat.log"
-CHAT_INPUT = "chat.in"
 
 
 def randID():
@@ -111,14 +104,14 @@ def send_request(clientID, msg):
     r = requests.post(url, data=payload, headers=HEADERS)
     return r
 
-
+# TODO: context manager
 class OmegleSession:
 
     def __init__(self, topics=[], chat_input=None, chat_outputs=[], pure_outputs=[]):
         self._topics = topics
         self._chat_input = chat_input
         self._chat_outputs = chat_outputs
-        self._pure_outputs = chat_outputs   # where only clean Stranger text goes
+        self._pure_outputs = pure_outputs     # where only clean Stranger text goes
         self._connected = False
 
         # TODO: Make variables used to check if session should be terminated thread-safe
@@ -138,8 +131,6 @@ class OmegleSession:
         if self._connect():
             self._t_event_handling = Thread(target=self._process_events_loop, daemon=True)
             self._t_event_handling.start()
-            self._t_input_handling = Thread(target=self._handle_input_loop, daemon=True)
-            self._t_input_handling.start()
 
     def _connect(self):
         msg = "Connecting"
@@ -157,14 +148,8 @@ class OmegleSession:
             logging.warning(msg)
             return False
 
-    def _handle_input_loop(self):
-        logging.info('Starting input handling loop')
-        while not self._time_to_stop():
-            msgs = self._chat_input.read().splitlines()
-            for msg in msgs:
-                self._send_message(msg)
-
-    def _send_message(self, chat_msg):
+    def send_message(self, chat_msg):
+        # TODO: typing
         resp = send_request(self._clientID, chat_msg)
         if resp:
             msg = ("You: %s" % chat_msg)
@@ -238,23 +223,8 @@ class OmegleSession:
 
     def _print_to_chat_outputs(self, to_print):
         for co in self._chat_outputs:
-            print(to_print, file=co)
+            print(to_print, file=co, flush=True)
 
     def _print_to_pure_outputs(self, to_print):
         for co in self._pure_outputs:
             print(to_print, file=co)
-
-
-def main():
-    topics = sys.argv[1:]
-
-    chatlog_f = open(CHATLOG_FILE, 'a')
-    chat_outputs = (stdout, chatlog_f)
-    chat_input = open(CHAT_INPUT, 'r')
-    # Start
-    session = OmegleSession(topics, chat_input, chat_outputs)
-    while not session._time_to_stop():
-        sleep(1)
-
-if __name__ == "__main__":
-    main()
