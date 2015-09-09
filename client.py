@@ -33,6 +33,8 @@ def output_text(text):
     if type(text) == bytes:
         text = str(text, 'utf-8')
     output.set_text("%s%s%s" % (os.linesep, output.text, text))
+    if "Stranger has disconnected" in text:
+        raise urwid.ExitMainLoop()
 
 class OmegleClientUI(object):
     def __init__(self):
