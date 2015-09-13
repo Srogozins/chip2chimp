@@ -104,20 +104,21 @@ def send_request(clientID, msg):
     r = requests.post(url, data=payload, headers=HEADERS)
     return r
 
+
 # TODO: context manager
 class OmegleSession:
 
-    def __init__(self, topics=[], chat_input=None, chat_outputs=[], pure_outputs=[]):
+    def __init__(self, topics=()):
         self._topics = topics
-        self._chat_input = chat_input
-        self._chat_outputs = chat_outputs
-        self._pure_outputs = pure_outputs     # where only clean Stranger text goes
+        self._chat_output_callbacks = []
+        self._stranger_output_callbacks = []     # where only clean Stranger text goes
         self._connected = False
 
         # TODO: Make variables used to check if session should be terminated thread-safe
         self._is_stranger_bot = False
         self._has_stranger_typed = False
         self._stranger_disconnected = False
+        self.is_active = False
 
         self._event_handlers = {'waiting': self._handle_event_waiting,
                                 'connected': self._handle_event_connected,
@@ -127,7 +128,14 @@ class OmegleSession:
                                 'strangerDisconnected': self._handle_event_strangerDisconnected}
         self.event_list = []
 
-        # Run
+    def register_output_callback(self, callback, stranger_output_only=False):
+        if stranger_output_only:
+            self._stranger_output_callbacks.append(callback)
+        else:
+            self._chat_output_callbacks.append(callback)
+
+    def run(self):
+        self.is_active = True
         if self._connect():
             self._t_event_handling = Thread(target=self._process_events_loop, daemon=True)
             self._t_event_handling.start()
@@ -135,12 +143,12 @@ class OmegleSession:
     def _connect(self):
         msg = "Connecting"
         logging.info(msg)
-        self._print_to_chat_outputs(msg)
+        self._handle_chat_output(msg)
         r = start_request(self._topics)
         if r:
             msg = "Connected"
             logging.info(msg)
-            self._print_to_chat_outputs(msg)
+            self._handle_chat_output(msg)
             self._clientID = r.json()['clientID']
             return True
         else:
@@ -157,7 +165,7 @@ class OmegleSession:
         else:
             msg = ("Failed sending chat message.")
             logging.warning(msg)
-        self._print_to_chat_outputs(msg)
+        self._handle_chat_output(msg)
 
     def _time_to_stop(self):
         return self._is_stranger_bot or self._stranger_disconnected
@@ -165,18 +173,18 @@ class OmegleSession:
     def _handle_event_waiting(self, event):
         msg = "Waiting for stranger to connect..."
         logging.info(msg)
-        self._print_to_chat_outputs(msg)
+        self._handle_chat_output(msg)
 
     def _handle_event_connected(self, event):
         msg = "Stranger has connected."
         logging.info(msg)
-        self._print_to_chat_outputs(msg)
+        self._handle_chat_output(msg)
         self.connected = True
 
     def _handle_event_typing(self, event):
         msg = "Stranger is typing"
         logging.info(msg)
-        self._print_to_chat_outputs(msg)
+        self._handle_chat_output(msg)
         self._has_stranger_typed = True
 
     def _handle_event_stoppedTyping(self, event):
@@ -184,19 +192,19 @@ class OmegleSession:
 
     def _handle_event_gotMessage(self, event):
         text = event[1]
-        self._print_to_pure_outputs(text)
+        self._handle_stranger_output(text)
         msg = "Stranger: %s" % event[1]
         logging.info(msg)
-        self._print_to_chat_outputs(msg)
-        if not self._has_stranger_typed:
-            msg = "Stranger pasted a message, stranger is likely a bot!"
-            logging.warning(msg)
-            self._print_to_chat_outputs(msg)
+        self._handle_chat_output(msg)
+        # if not self._has_stranger_typed:
+        #     msg = "Stranger pasted a message, stranger is likely a bot!"
+        #     logging.warning(msg)
+        #     self._handle_chat_output(msg)
 
     def _handle_event_strangerDisconnected(self, event):
         msg = "Stranger has disconnected"
         logging.info(msg)
-        self._print_to_chat_outputs(msg)
+        self._handle_chat_output(msg)
         self._stranger_disconnected = True
 
     def _process_events_loop(self):
@@ -212,6 +220,7 @@ class OmegleSession:
                     logging.warning('Unhandled event type: %s' % event_type)
                 else:
                     self._event_handlers[event_type](e)
+        self.is_active = False
 
     def _get_events(self):
         logging.info('Requesting events')
@@ -221,10 +230,10 @@ class OmegleSession:
         logging.debug('Received events: %s' % events)
         return events
 
-    def _print_to_chat_outputs(self, to_print):
-        for co in self._chat_outputs:
-            print(to_print, file=co, flush=True)
+    def _handle_chat_output(self, output):
+        for cb in self._chat_output_callbacks:
+            cb(output)
 
-    def _print_to_pure_outputs(self, to_print):
-        for co in self._pure_outputs:
-            print(to_print, file=co)
+    def _handle_stranger_output(self, output):
+        for cb in self._stranger_output_callbacks:
+            cb(output)
