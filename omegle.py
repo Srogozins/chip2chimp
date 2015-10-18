@@ -210,7 +210,14 @@ class OmegleSession:
         if r:
             msg = "Connected"
             logging.info(msg)
-            self._clientID = r.json()['clientID']
+            j = r.json()
+            self._clientID = j['clientID']
+            # TODO: rewrite so it doesn't duplicate _gather_events()
+            if j['events']:
+                logging.info('Got events upon connecting, putting in queue.')
+                logging.debug(j['events'])
+                for e in j['events']:
+                    self._event_handler.handle(e)
             return True
         else:
             msg = "Could not connect"

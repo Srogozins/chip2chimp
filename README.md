@@ -28,8 +28,11 @@ $ ./c2c.py music programming
 ```
 
 ## TODO
-* Chat log files
-* Better chat session management UI
+* ~~Chat log files~~ 
+* Disguise robotic behaviour
+* Detect other bots and drop them if necessary
+* Support for multiple simultaneous chat sessions and other management
+* Better UI
 * Manual chat input
 * Support for more Human/Computer communication APIs
 * Multiparty communication
