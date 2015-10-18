@@ -1,0 +1,5 @@
+aiohttp==0.17.4
+chardet==2.3.0
+Cleverbot==1.1
+requests==2.8.1
+wheel==0.24.0
