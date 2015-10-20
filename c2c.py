@@ -24,7 +24,6 @@ class Chip2ChimpSession(object):
         self._omegle.register_event_callback('gotMessage', self._handle_event_gotMessage_cleverbot_respond)
         self._omegle.register_event_callback('strangerDisconnected', self._handle_event_strangerDisconnected)
 
-    # TODO: Move obvious stuff to default event handlers
     def _handle_chat_output(self, msg):
         print(msg)
         if self._chatlog:
@@ -68,7 +67,6 @@ class Chip2ChimpSession(object):
         msg = "Stranger has disconnected"
         logging.info(msg)
         self._handle_chat_output(msg)
-        self._omegle.disconnect()
 
     def run(self):
         self._omegle.run()

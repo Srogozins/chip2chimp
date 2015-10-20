@@ -4,6 +4,7 @@ import logging
 from random import choice
 import requests
 
+# TODO: Add datetime to log messages
 # Logging
 logging.basicConfig(filename='omegle.log')
 logging.basicConfig(level=logging.DEBUG)
@@ -135,13 +136,23 @@ class EventHandler:
             callback(event)
 
 
+class OmegleDefaultEventHandlingMixin:
+    def _handle_event_strangerDisconnected(self, event):
+        self.disconnect()
+
+    def _register_default_event_handling(self):
+        self.register_event_callback('strangerDisconnected', self._handle_event_strangerDisconnected)
+
+
 # TODO: context manager?
-class OmegleSession:
+class OmegleSession(OmegleDefaultEventHandlingMixin):
     """ Class for establishing an Omegle chat session and binding callbacks to chat events"""
 
-    def __init__(self, topics=()):
+    def __init__(self, topics=(), default_handling=True):
         self._topics = topics
         self._event_handler = EventHandler(HANDLED_EVENTS)
+        if(default_handling):
+            self._register_default_event_handling()
 
         self._connected = False
         self.is_active = False
